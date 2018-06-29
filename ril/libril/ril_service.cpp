@@ -1943,18 +1943,19 @@ Return<void> RadioImpl::setInitialAttachApn(int32_t serial, const DataProfileInf
 
 #ifdef NEEDS_ROAMING_PROTOCOL_FIELD
         if (!copyHidlStringToRil(&iaa.roamingProtocol, dataProfileInfo.roamingProtocol, pRI)) {
-            memsetAndFreeStrings(4, iaa.apn, iaa.protocol, iaa.username, iaa.roamingProtocol);
+            memsetAndFreeStrings(4, iaa.apn, iaa.protocol, iaa.username, iaa.password);
             return Void();
         }
 #endif
 
-#ifdef NEEDS_IMS_TYPE_FIELD
-        iaa.imsType = 0;
-#endif
-
         CALL_ONREQUEST(RIL_REQUEST_SET_INITIAL_ATTACH_APN, &iaa, sizeof(iaa), pRI, mSlotId);
 
+#ifdef NEEDS_ROAMING_PROTOCOL_FIELD
+        memsetAndFreeStrings(5, iaa.apn, iaa.protocol, iaa.username, iaa.password,
+                iaa.roamingProtocol);
+#else
         memsetAndFreeStrings(4, iaa.apn, iaa.protocol, iaa.username, iaa.password);
+#endif
     } else {
         RIL_InitialAttachApn_v15 iaa = {};
 
@@ -4360,10 +4361,7 @@ int radio::getAvailableNetworksResponse(int slotId,
 #if VDBG
     RLOGD("getAvailableNetworksResponse: serial %d", serial);
 #endif
-    int mqanelements;
-    char value[PROPERTY_VALUE_MAX];
-    property_get("ro.ril.telephony.mqanelements", value, "4");
-	mqanelements = atoi(value);
+    int mqanelements = property_get_int32("ro.ril.telephony.mqanelements", 4);
 
     if (radioService[slotId]->mRadioResponse != NULL) {
         RadioResponseInfo responseInfo = {};
@@ -6714,7 +6712,7 @@ int radio::nitzTimeReceivedInd(int slotId,
         }
 
         nitzTime = convertCharPtrToHidlString(resp);
-        free(resp);
+        memsetAndFreeStrings(1, resp);
 #if VDBG
         RLOGD("nitzTimeReceivedInd: nitzTime %s receivedTime %" PRId64, nitzTime.c_str(),
                 timeReceived);
